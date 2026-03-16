@@ -502,24 +502,24 @@ async function showProfile(name) {
           const barW = Math.min(Math.round((m.days / 23) * 100), 100);
           const barColor = m.status === 'Critical' ? 'bg-rose-500' : m.status === 'Warning' ? 'bg-amber-500' : 'bg-emerald-500';
           const datesList = (m.dates || []).map(dt => {
-            const startDate = new Date(dt.date + 'T00:00:00');
+            const returnDate = new Date(dt.date + 'T00:00:00');
             const days = dt.days_absent;
             const reasonText = dt.reason && dt.reason !== 'N/A' ? dt.reason : '';
             let dateLabel;
             if (days > 1) {
-              // Calculate end date by adding working days (skip weekends)
-              let endDate = new Date(startDate);
-              let added = 1;
-              while (added < days) {
-                endDate.setDate(endDate.getDate() + 1);
-                const dow = endDate.getDay();
-                if (dow !== 0 && dow !== 6) added++;
-              }
-              const startFmt = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-              const endFmt = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              // Date in the form is the RETURN date, so absence = (date - days) to (date - 1)
+              let absenceStart = new Date(returnDate);
+              absenceStart.setDate(absenceStart.getDate() - days);
+              let absenceEnd = new Date(returnDate);
+              absenceEnd.setDate(absenceEnd.getDate() - 1);
+              const startFmt = absenceStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const endFmt = absenceEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               dateLabel = `${startFmt} to ${endFmt}`;
             } else {
-              dateLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              // Single day: absent the day before the return date
+              let absenceDay = new Date(returnDate);
+              absenceDay.setDate(absenceDay.getDate() - 1);
+              dateLabel = absenceDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
             return `
               <div class="flex items-start gap-2 py-1.5 border-b border-slate-800/30 last:border-0">
