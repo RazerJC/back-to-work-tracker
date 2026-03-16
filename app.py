@@ -327,7 +327,8 @@ def auto_load():
 @app.route("/api/load_sheet", methods=["POST"])
 def load_sheet():
     """Load data live from Google Sheets."""
-    sheet_id = request.json.get("sheet_id", GOOGLE_SHEET_ID) if request.json else GOOGLE_SHEET_ID
+    data = request.get_json(silent=True)
+    sheet_id = data.get("sheet_id", GOOGLE_SHEET_ID) if data else GOOGLE_SHEET_ID
     export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
     try:
         resp = requests.get(export_url, timeout=30)
