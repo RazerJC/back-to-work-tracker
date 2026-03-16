@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Employee Attendance Analytics System</title>
+  <meta name="description" content="Professional Employee Absence Tracking and Analytics Dashboard">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: { 50:'#f8fafc', 100:'#f1f5f9', 700:'#1e293b', 800:'#0f172a', 900:'#020617' },
+            accent: { 400:'#38bdf8', 500:'#0ea5e9', 600:'#0284c7' },
+            emerald: { 400:'#34d399', 500:'#10b981' },
+            amber: { 400:'#fbbf24', 500:'#f59e0b' },
+            rose: { 400:'#fb7185', 500:'#f43f5e' },
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #020617; }
+    .glass { background: rgba(30,41,59,0.6); backdrop-filter: blur(12px); border: 1px solid rgba(56,189,248,0.1); }
+    .glow-blue { box-shadow: 0 0 20px rgba(14,165,233,0.15); }
+    .glow-emerald { box-shadow: 0 0 20px rgba(16,185,129,0.15); }
+    .glow-amber { box-shadow: 0 0 20px rgba(245,158,11,0.15); }
+    .glow-rose { box-shadow: 0 0 20px rgba(244,63,94,0.15); }
+    .card-hover { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); cursor: pointer; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(14,165,233,0.2); border-color: rgba(56,189,248,0.3); }
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-down { animation: slideDown 0.3s ease-out; }
+    @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 2000px; } }
+    .spinner { border: 3px solid rgba(56,189,248,0.2); border-top: 3px solid #38bdf8; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .breadcrumb-item { cursor: pointer; transition: color 0.2s; }
+    .breadcrumb-item:hover { color: #38bdf8; }
+    .dept-row:hover { background: rgba(56,189,248,0.05); }
+    .emp-row:hover { background: rgba(56,189,248,0.08); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-200">
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-surface-900/90 backdrop-blur-sm hidden">
+  <div class="spinner mb-4"></div>
+  <p id="loadingText" class="text-slate-400 text-sm">Processing data…</p>
+</div>
+
+<!-- Notification Toast -->
+<div id="notification" class="fixed top-4 right-4 z-40 px-5 py-3 rounded-xl text-sm font-medium shadow-2xl transition-all duration-500 translate-x-[120%] glass">
+  <span id="notifText"></span>
+</div>
+
+<!-- Employee Profile Modal -->
+<div id="profileModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this)closeModal()">
+  <div class="glass rounded-2xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-y-auto fade-in">
+    <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
+      <h2 id="profileName" class="text-xl font-bold text-white">Employee Profile</h2>
+      <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors text-xl">&times;</button>
+    </div>
+    <div id="profileBody" class="p-6"></div>
+  </div>
+</div>
+
+<!-- App Container -->
+<div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+  <!-- Header -->
+  <header class="flex flex-wrap items-center justify-between gap-4 mb-8">
+    <div class="flex items-center gap-4">
+      <img src="/static/sitelogo-1.png" alt="TMGS Logo" class="w-12 h-12 object-contain rounded-xl shadow-lg">
+      <div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-bold text-white tracking-tight">Employee Attendance Analytics</h1>
+          <img src="/static/logo-le-reacteur.png" alt="TAASCOR Management & General Services Corp." class="h-8 object-contain hidden sm:block opacity-80 hover:opacity-100 transition-opacity">
+        </div>
+        <p id="dataStatus" class="text-sm text-slate-400">No data loaded</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden">
+      <button onclick="document.getElementById('fileInput').click()" class="px-4 py-2.5 bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-accent-500/20 hover:shadow-accent-500/30">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import Excel
+      </button>
+      <button onclick="autoLoad()" class="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Auto-Load Data
+      </button>
+      <div class="relative" id="exportDropdown">
+        <button onclick="toggleDropdown()" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export Report
+        </button>
+        <div id="dropdownMenu" class="absolute right-0 top-full mt-2 w-56 glass rounded-xl shadow-2xl z-20 py-2 hidden">
+          <button onclick="exportReport('monthly')" class="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-accent-500/10 hover:text-white transition-colors">📅 Monthly Absence Report</button>
+          <button onclick="exportReport('department')" class="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-accent-500/10 hover:text-white transition-colors">🏢 Department Report</button>
+          <button onclick="exportReport('leaderboard')" class="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-accent-500/10 hover:text-white transition-colors">🏆 Absence Leaderboard</button>
+          <button onclick="exportReport('critical')" class="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-accent-500/10 hover:text-white transition-colors">🚨 Critical Absence Report</button>
+          <button onclick="exportReport('email_warnings')" class="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-accent-500/10 hover:text-white transition-colors">✉️ Email Warning Reports</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Welcome State -->
+  <div id="welcomeState" class="flex flex-col items-center justify-center py-24 fade-in">
+    <div class="text-7xl mb-6"><img src="/static/sitelogo-1.png" alt="TMGS" class="w-24 h-24 object-contain mx-auto"></div>
+    <h2 class="text-3xl font-bold text-white mb-3">Welcome to Employee Attendance Analytics</h2>
+    <p class="text-slate-400 max-w-xl text-center mb-8">Import your Excel attendance data or click <strong class="text-white">Auto-Load Data</strong> to automatically detect and load the Excel file from the application folder.</p>
+    <div class="flex gap-4">
+      <button onclick="document.getElementById('fileInput').click()" class="px-6 py-3 bg-accent-500 hover:bg-accent-600 text-white font-medium rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-accent-500/20">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import Excel File
+      </button>
+      <button onclick="autoLoad()" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Auto-Load Data
+      </button>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden">
+
+    <!-- Filter Bar -->
+    <div class="glass rounded-xl p-4 mb-6 flex flex-wrap items-center gap-3">
+      <div class="flex-1 min-w-[220px] relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" placeholder="Search employee by name…" class="w-full pl-10 pr-4 py-2.5 bg-surface-800/80 border border-slate-700/50 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/20 transition-all">
+      </div>
+      <select id="filterCompany" class="px-3 py-2.5 bg-surface-800/80 border border-slate-700/50 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-accent-500/50 cursor-pointer">
+        <option value="">All Companies</option>
+      </select>
+      <select id="filterMonth" class="px-3 py-2.5 bg-surface-800/80 border border-slate-700/50 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-accent-500/50 cursor-pointer">
+        <option value="">All Months</option>
+      </select>
+      <select id="filterYear" class="px-3 py-2.5 bg-surface-800/80 border border-slate-700/50 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-accent-500/50 cursor-pointer">
+        <option value="">All Years</option>
+      </select>
+      <select id="filterDept" class="px-3 py-2.5 bg-surface-800/80 border border-slate-700/50 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-accent-500/50 cursor-pointer">
+        <option value="">All Departments</option>
+      </select>
+      <button onclick="clearFilters()" class="px-4 py-2.5 bg-slate-700/50 hover:bg-slate-600/50 text-sm text-slate-300 rounded-lg transition-colors">Clear</button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="glass rounded-xl p-5 card-hover glow-blue cursor-pointer" onclick="showEmployeeList()">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-lg bg-accent-500/10 flex items-center justify-center text-xl">👥</div>
+          <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Total Employees</span>
+        </div>
+        <div id="statEmployees" class="text-3xl font-bold text-white">0</div>
+      </div>
+      <div class="glass rounded-xl p-5 card-hover glow-emerald" onclick="scrollTo('#chartsSection')">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-xl">📅</div>
+          <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Total Absent Days</span>
+        </div>
+        <div id="statDays" class="text-3xl font-bold text-white">0</div>
+      </div>
+      <div class="glass rounded-xl p-5 card-hover glow-amber" onclick="scrollTo('#alertsPanel')">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-xl">⚠️</div>
+          <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Warnings</span>
+        </div>
+        <div id="statWarnings" class="text-3xl font-bold text-amber-400">0</div>
+      </div>
+      <div class="glass rounded-xl p-5 card-hover glow-rose" onclick="scrollTo('#alertsPanel')">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center text-xl">🚨</div>
+          <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Critical Alerts</span>
+        </div>
+        <div id="statCriticals" class="text-3xl font-bold text-rose-400">0</div>
+      </div>
+    </div>
+
+    <!-- Company Section (NEW: Primary grouping) -->
+    <div id="companySection" class="mb-6">
+      <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <span class="text-xl">🏢</span> Companies
+        <span id="companyCount" class="text-xs bg-accent-500/20 text-accent-400 px-2 py-0.5 rounded-full font-normal"></span>
+      </h3>
+      <div id="companyCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <!-- JS rendered -->
+      </div>
+    </div>
+
+    <!-- Company Detail Panel (shown when a company is clicked) -->
+    <div id="companyDetail" class="mb-6 hidden">
+      <div class="glass rounded-xl overflow-hidden fade-in">
+        <!-- Breadcrumb -->
+        <div class="px-6 py-3 border-b border-slate-700/50 flex items-center gap-2 text-sm">
+          <span class="breadcrumb-item text-accent-400" onclick="closeCompanyDetail()">All Companies</span>
+          <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+          <span id="breadcrumbCompany" class="text-white font-medium"></span>
+          <span id="breadcrumbDept" class="hidden">
+            <svg class="w-4 h-4 text-slate-600 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            <span id="breadcrumbDeptName" class="text-white font-medium"></span>
+          </span>
+        </div>
+
+        <!-- Company Stats -->
+        <div id="companyDetailStats" class="px-6 py-4 border-b border-slate-700/50 grid grid-cols-3 gap-4">
+        </div>
+
+        <!-- Department List / Employee List -->
+        <div id="companyDetailBody" class="p-6">
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div id="chartsSection" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="glass rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2"><span>📊</span> Absences Per Department</h3>
+        <div class="h-[280px]"><canvas id="deptChart"></canvas></div>
+      </div>
+      <div class="glass rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2"><span>📈</span> Monthly Absence Trends</h3>
+        <div class="h-[280px]"><canvas id="monthChart"></canvas></div>
+      </div>
+      <div class="glass rounded-xl p-5 lg:col-span-2">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2"><span>🏆</span> Top 10 Employee Absence Leaderboard</h3>
+        <div class="h-[300px]"><canvas id="top10Chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Alerts Panel -->
+    <div id="alertsPanel" class="glass rounded-xl p-5 mb-6">
+      <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+        <span>⚠️</span> Absence Alerts
+        <span id="alertCount" class="text-xs bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full">0</span>
+      </h3>
+      <div id="alertList" class="space-y-2 max-h-[400px] overflow-y-auto">
+        <!-- JS rendered -->
+      </div>
+    </div>
+
+    <!-- Employee Table -->
+    <div class="glass rounded-xl overflow-hidden mb-6">
+      <div class="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">Employee Absence Records <span id="tableCount" class="text-xs text-slate-400 font-normal"></span></h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700/50">
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Employee Name</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Company</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Department</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Month</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Year</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Total Absences</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Reason</th>
+              <th class="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-800/50">
+            <!-- JS rendered -->
+          </tbody>
+        </table>
+      </div>
+      <div id="pagination" class="px-5 py-3 border-t border-slate-700/50 flex items-center justify-center gap-2"></div>
+    </div>
+
+  </div><!-- /dashboard -->
+</div>
+
+<!-- Employee List Modal -->
+<div id="employeeListModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,0.7);backdrop-filter:blur(8px)">
+  <div class="glass rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-700/50" style="animation:slideIn .3s ease">
+    <div class="p-5 border-b border-slate-700/50 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-white">👥 All Employees</h2>
+        <p id="empListCount" class="text-xs text-slate-400 mt-0.5">Loading...</p>
+      </div>
+      <button onclick="closeEmployeeList()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 pt-3">
+      <input id="empListSearch" type="text" placeholder="Search employees..." class="w-full bg-slate-800/50 text-white text-sm rounded-lg px-4 py-2.5 border border-slate-700/50 focus:border-accent-500 focus:outline-none" oninput="filterEmployeeList()">
+    </div>
+    <div id="empListBody" class="p-5 overflow-y-auto flex-1">
+      <!-- JS rendered -->
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
