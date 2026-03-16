@@ -6,6 +6,7 @@ import io
 import re
 import json
 import tempfile
+import requests
 from datetime import datetime, date
 from collections import defaultdict
 
@@ -14,6 +15,9 @@ from openpyxl import Workbook, load_workbook
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
+
+# ── Google Sheet Config ───────────────────────────────────────────────
+GOOGLE_SHEET_ID = "1V45ID18rScFJofEe4wmnmN5PEebNt4xpo_Uaa2o0RRM"
 
 # ── In-memory data store ──────────────────────────────────────────────
 DATA_STORE = {
@@ -316,6 +320,28 @@ def auto_load():
         DATA_STORE["loaded"] = True
         DATA_STORE["source_file"] = candidates[0]
         return jsonify({"message": f"Loaded {len(records)} records from {candidates[0]}", "count": len(records), "filename": candidates[0]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/load_sheet", methods=["POST"])
+def load_sheet():
+    """Load data live from Google Sheets."""
+    sheet_id = request.json.get("sheet_id", GOOGLE_SHEET_ID) if request.json else GOOGLE_SHEET_ID
+    export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
+    try:
+        resp = requests.get(export_url, timeout=30)
+        if resp.status_code != 200:
+            return jsonify({"error": f"Could not fetch Google Sheet (HTTP {resp.status_code}). Make sure the sheet is shared as 'Anyone with the link can view'."}), 400
+        wb = load_workbook(io.BytesIO(resp.content), data_only=True)
+        records = process_workbook(wb)
+        wb.close()
+        DATA_STORE["records"] = records
+        DATA_STORE["loaded"] = True
+        DATA_STORE["source_file"] = "Google Sheets (Live)"
+        return jsonify({"message": f"Loaded {len(records)} records from Google Sheets (live)", "count": len(records), "filename": "Google Sheets (Live)"})
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Google Sheets request timed out. Try again."}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -42,10 +42,17 @@ function notify(text, type='success') {
 
 // ── Data Loading ─────────────────────────────────────────────────────
 async function autoLoad() {
-  showLoading('Auto-loading data…');
+  showLoading('Loading live data from Google Sheets…');
   try {
-    const r = await fetch('/api/auto_load', {method:'POST'});
-    const d = await r.json();
+    // Try Google Sheets first
+    let r = await fetch('/api/load_sheet', {method:'POST'});
+    let d = await r.json();
+    if (!r.ok) {
+      // Fallback to local file
+      showLoading('Falling back to local file…');
+      r = await fetch('/api/auto_load', {method:'POST'});
+      d = await r.json();
+    }
     if (r.ok) {
       document.getElementById('dataStatus').textContent = `Loaded: ${d.filename} (${d.count} records)`;
       document.getElementById('welcomeState').classList.add('hidden');
